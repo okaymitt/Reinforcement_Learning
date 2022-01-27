@@ -14,11 +14,13 @@ class Env(tk.Tk):
         super(Env, self).__init__()
         self.action_space = ['u', 'd', 'l', 'r']
         self.action_size = len(self.action_space)
+
         self.observation_size = (HEIGHT, WIDTH)
         self.title('Double Deep Q Network')
         self.geometry('{0}x{1}'.format(HEIGHT * UNIT, HEIGHT * UNIT))
         self.shapes = self.load_images()
         self.canvas = self._build_canvas()
+        
         self.counter = 0
         self.rewards = []
         self.goal = []
@@ -36,10 +38,10 @@ class Env(tk.Tk):
         # create grids
         for c in range(0, WIDTH * UNIT, UNIT):  # 0~400 by 80
             x0, y0, x1, y1 = c, 0, c, HEIGHT * UNIT
-            canvas.create_line(x0, y0, x1, y1)
+            canvas.create_line(x0, y0, x1, y1, fill='black')
         for r in range(0, HEIGHT * UNIT, UNIT):  # 0~400 by 80
             x0, y0, x1, y1 = 0, r, HEIGHT * UNIT, r
-            canvas.create_line(x0, y0, x1, y1)
+            canvas.create_line(x0, y0, x1, y1, fill='black')
 
         self.rewards = []
         self.goal = []

@@ -5,7 +5,7 @@ class Test_Gridworld(unittest.TestCase):
     def test_grid_world(self):
         environment = grid_world.Gridworld()
         result = (environment.pos_x, environment.pos_y)
-        expected_result = (3, 0)
+        expected_result = (0, 3)
         self.assertEqual(result, expected_result)
 
     def test_move(self):
