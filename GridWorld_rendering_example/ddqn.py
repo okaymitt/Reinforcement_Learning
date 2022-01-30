@@ -150,14 +150,8 @@ class DoubleDQNAgent:
 if __name__ == "__main__":
     # create environment
     env = Env()
-    
-    print('!')
-    time.sleep(10)
 
     state = env.reset()
-
-    print('!!')
-    time.sleep(10)
 
     # get size of state and action from environment
     state_size = (env.observation_size[0], env.observation_size[1], 1)
