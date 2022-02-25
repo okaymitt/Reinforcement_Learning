@@ -4,6 +4,7 @@ Cross-wind on y-axis accordind following scheme [0, 0, 0, 1, 1, 1, 2, 2, 1, 0]
 Agent cannot fall over the edge, but keeps
 """
 
+from math import inf
 import tkinter as tk
 from PIL import ImageTk, Image
 import time
@@ -12,9 +13,12 @@ PhotoImage = ImageTk.PhotoImage
 UNIT = 75  # pixels
 # HEIGHT = 10  # grid height
 # WIDTH = 10  # grid width
+INFO_BOX = 2
+WIND_BOX = 2
+
 
 class Gridworld(tk.Tk):
-    def __init__(self, move='cross', modus='auto'):
+    def __init__(self, move='cross', modus='RL'):
         super(Gridworld, self).__init__()
 
         # set world
@@ -23,33 +27,37 @@ class Gridworld(tk.Tk):
         self.wind = [0, 0, 0, 1, 1, 1, 2, 2, 1, 0]
         
         self.start = (0,3)
-        self.goal_coords =  (7, 3)
+        self.goal =  (7,3)
 
         self.pos_x = self.start[0]
         self.pos_y = self.start[1]
 
         self.set_action_space(move)
         self.observation_size = (self.dim_x, self.dim_y)
+        self.state = [(x,y) for x in range(self.dim_x) for y in range(self.dim_y)]
+        self.state_size = len(self.state)
+
+        self.counter = 0
+        self.reward = 0
+        self.rewards = 0
+        self.highscore = -inf
+        self.round = 0
+        self.mode = modus
 
 
         # set canvas
-        self.title('Windy grid world')
-        self.geometry('{0}x{1}'.format(UNIT * self.dim_x, UNIT * self.dim_y))
+        self.title_text = 'Windy grid world'
+        self.title(self.title_text)
+        self.tk_setPalette(background='white', foreground='black',
+               activeBackground='red', activeForeground='blue')
+        # Tkinter.Button(root, text="Press me!").pack()
+        self.geometry('{0}x{1}'.format(UNIT * self.dim_x , UNIT * (self.dim_y + INFO_BOX + WIND_BOX)))
+        self.ub_score, self.ub_highscore, self.ub_round = self._build_upper_box()
         self.shapes = self._load_images()
         self.canvas = self._build_canvas()
+        self.lower_box, self.lb_arrows = self._build_lower_box()
 
-        self.counter = 0
-        self.rewards = []
-        self.goal = []
 
-        # set rewards
-        for x in range(self.dim_x):
-            for y in range(self.dim_y):
-                state = (x, y)
-                if state != self.goal_coords:
-                    self.set_reward(state, -1)
-                else:
-                    self.set_reward(state, 10)
 
         # move agent with arrow keys, if modus is manual
         if modus == 'manual':
@@ -66,10 +74,61 @@ class Gridworld(tk.Tk):
 
         self.action_size = len(self.action_space)
 
+    def _build_upper_box(self):
+        """Set info box at the top"""
+        # background white!
+        upper_box = tk.Frame(self, width=UNIT*self.dim_x, height=2*UNIT)
+        upper_box.pack()
+
+        title_font = ("Courier", int(40))
+        title_label = tk.Label(upper_box, text=self.title_text, font=title_font)
+        title_label.pack()
+
+        main_font = ("Courier", int(25))
+
+        info_box = tk.Frame(upper_box, height=UNIT)
+        info_box.pack()
+
+        score = tk.Label(info_box, text=f'SCORE: {self.rewards} \t', font=main_font)
+        score.grid(row=0,column=0)
+
+        highscore = tk.Label(info_box, text=f'HIGHSCORE:{self.highscore} \t', font=main_font)
+        highscore.grid(row=1,column=0)
+        
+        mode = tk.Label(info_box, text=f'MODE: {self.mode} \t', font=main_font)
+        mode.grid(row=0,column=1)
+
+        round = tk.Label(info_box, text=f'ROUND: {self.round} \t', font=main_font)
+        round.grid(row=1,column=1)
+
+        return score, highscore, round
+
+
+    def update_upper_box(self):
+        self.ub_score.config(text=f'SCORE: {self.rewards} \t')
+        self.ub_highscore.config(text=f'HIGHSCORE:{self.highscore} \t')
+        self.ub_round.config(text=f'ROUND: {self.round} \t')
+
+    def update_lower_box(self):
+        c=0
+        for arrow in self.lb_arrows:
+            if self.pos_x ==c:
+                self.lower_box.itemconfig(arrow, fill='red')
+            else:
+                self.lower_box.itemconfig(arrow, fill='grey')
+            c += 1
+
+
+    def _draw_wind_strength(self):
+        """ Wind is visualized dynamically, such that acstive pushing can be seen"""
+        pass
+
+
     def _build_canvas(self):
-        canvas = tk.Canvas(self, bg='white',
+        canvas = tk.Canvas(self, bg='white', 
                            width=self.dim_x * UNIT,
                            height=self.dim_y * UNIT)
+
         # create grids
         for c in range(0, self.dim_x * UNIT, UNIT):  # 0~400 by 80
             x0, y0, x1, y1 = c, 0, c, self.dim_y * UNIT
@@ -78,13 +137,17 @@ class Gridworld(tk.Tk):
             x0, y0, x1, y1 = 0, r, self.dim_x * UNIT, r
             line = canvas.create_line(x0, y0, x1, y1, fill='black')
 
-        self.rewards = []
-        self.goal = []
         # add image to canvas
-        x, y =  UNIT/2 + self.start[0]*UNIT , UNIT/2 + self.start[1]*UNIT
+        x, y = self.state_to_coords(self.start)
         self.rectangle = canvas.create_image(x, y, image=self.shapes[0])
 
+        x, y = self.state_to_coords(self.goal)
+        self.circle = canvas.create_image(x, y, image=self.shapes[2])
+
         # pack all`
+        # canvas.pack(padx=.5, pady=.5, anchor='center')
+
+        # canvas.place(relx=0.5, y=2*UNIT, anchor='n')
         canvas.pack()
 
         return canvas
@@ -100,29 +163,29 @@ class Gridworld(tk.Tk):
 
         return rectangle, triangle, circle
 
-    def set_reward(self, state, reward):
-        x, y = state
-        temp = {}
+    def _build_lower_box(self):
 
-        temp['rewad'] = reward
+        lower_box = tk.Canvas(self, bg='white', 
+                    width=self.dim_x * UNIT,
+                    height=2 * UNIT)
 
-        if reward > 0:
-            print(x, y)
-            temp['figure'] = self.canvas.create_image( UNIT / 2 + UNIT * x,
-                                                       UNIT / 2 + UNIT * y,
-                                                       image=self.shapes[2])
-            self.canvas.tag_raise(temp['figure'])
-            self.goal.append(temp['figure'])
-            temp['coords'] = self.canvas.coords(temp['figure'])
-            
-        elif reward < 0:
-            temp['figure'] = None
-            temp['coords'] = ((UNIT * x) + UNIT / 2, (UNIT * y) + UNIT / 2)
+        arrows = []
+        counter=0
+        for c in range(0, self.dim_x * UNIT, UNIT):  # 0~400 by 80
+            x0, y0, x1, y1 = UNIT/2 + c, UNIT/2, UNIT/2 + c, UNIT
+            arrows.append(lower_box.create_line(x0, y0, x1, y1, fill='grey', arrow=tk.FIRST,
+            arrowshape=(20,20,10), width=25))
+            lower_box.create_text(x0, y0+UNIT, text=self.wind[counter], fill='black', font=("Courier", int(25)))
+            counter +=1
+       
 
-        temp['state'] = state
-        self.rewards.append(temp)
+        lower_box.pack()
 
-    def move(self, agent,  direction):
+        return lower_box, arrows
+        
+
+
+    def move(self, direction):
         move_x = direction[0]
         move_y = direction[1] - self.wind[self.pos_x]
 
@@ -147,6 +210,9 @@ class Gridworld(tk.Tk):
         self.pos_x = new_pos_x
         self.pos_y = new_pos_y
 
+        return (new_pos_x, new_pos_y)
+ 
+
 
 
     def _move_agent(self, move_x, move_y):
@@ -157,17 +223,34 @@ class Gridworld(tk.Tk):
         self.canvas.move(self.rectangle, move_x, move_y)
         self.render()
 
+    def get_state_idx(self, state):
+        return self.state.index(state)
 
-    def coords_to_state(self):
-        pass
+    def get_current_state_idx(self):
+        return self.state.index((self.pos_x, self.pos_y))
 
-    def state_to_coords(self):
-        pass
+
+    def state_to_coords(self, state):
+        x, y = state
+        return UNIT/2 + x * UNIT , UNIT/2 + y * UNIT
+        
+
+    def get_reward(self, state):
+        if state == self.goal:
+            return 1000, True
+        else:
+            return -1, False
 
     def step(self, action_idx):
         self.counter += 1
         direction = self.get_direction(action_idx)
-        next_coords = self.move(self.rectangle, direction)
+        new_state = self.move(direction)
+        reward, done = self.get_reward(new_state)
+        self.rewards += reward
+        self.update_upper_box()
+        self.update_lower_box()
+        new_state_idx = self.get_state_idx(new_state)
+        return new_state_idx, reward, done
 
     def get_direction(self, action_idx):
         action = self.action_space[action_idx]
@@ -191,37 +274,60 @@ class Gridworld(tk.Tk):
 
         return direction 
 
+    def get_observation_size(self):
+        return self.observation_size
+
+    def get_state_size(self):
+        return self.state_size
+
+    def get_action_size(self):
+        return self.action_size 
+
     def render(self):
-        #time.sleep(0.07)
+        # time.sleep(1)
         self.update()
+        # self.update_idletasks()
 
     def reset(self):
-        pass
+        self.pos_x = self.start[0]
+        self.pos_y = self.start[1]
+
+        self.update_stats()
+
+        self.update_upper_box()
+
+        self.render()
+        x, y = self.state_to_coords(self.start)
+        self.canvas.coords(self.rectangle, x, y)
+        
 
      
     def bindings(self):
-        self.bind("<Up>", lambda event: self.step(0))
-        self.bind("<Down>", lambda event: self.step(1))
-        self.bind("<Left>", lambda event: self.step(2))
-        self.bind("<Right>", lambda event: self.step(3))
-        self.canvas.bind("<Button-1>", lambda event: self.step(3))
+        self.bind("<Up>", lambda event: self.manual_step(0))
+        self.bind("<Down>", lambda event: self.manual_step(1))
+        self.bind("<Left>", lambda event: self.manual_step(2))
+        self.bind("<Right>", lambda event: self.manual_step(3))
+        # self.canvas.bind("<Button-1>", lambda event: self.step(3))
     
     def draw(self):
         self.canvas.move(self.rectangle, UNIT, UNIT)
         self.canvas.after(100, self.draw)
 
-
-
+    def manual_step(self, action_idx):
+        _, _, done = self.step(action_idx)
+        if done:
+            self.round +=1
+            if self.highscore < self.rewards: self.highscore = self.rewards
+            self.reset()
+    
+    def update_stats(self):
+        self.round +=1
+        if self.highscore < self.rewards: self.highscore = self.rewards
+        self.rewards=0
 
 
 
 
 if __name__=="__main__":
     env = Gridworld(modus='manual')
-    #env.update()
-    #time.sleep(5)
-    #print('MOVE!')
-    # env.step(3)
-    # env.draw()
-    
     tk.mainloop()

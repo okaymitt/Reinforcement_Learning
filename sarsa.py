@@ -64,7 +64,7 @@ class Sarsa():
 
 if __name__ == '__main__':
     gridworld = grid_world.Gridworld(move='cross', modus='RL')
-    sarsa = Sarsa(gridworld, episodes=1000^)
+    sarsa = Sarsa(gridworld, episodes=1000)
     sarsa.compute()
 
     tk.mainloop()
